@@ -1,0 +1,302 @@
+openapi: 3.0.0
+info:
+  title: Money Muling Detection API
+  version: 1.0.0
+  description: API for detecting transaction muling activities.
+
+servers:
+  - url: http://localhost:3001
+    description: Local Development Server
+
+paths:
+  /api/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: testuser
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      username:
+                        type: string
+                  token:
+                    type: string
+        '400':
+          description: Bad request (e.g., username already exists)
+  
+  /api/login:
+    post:
+      summary: Log in a user and get a JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: testuser
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      username:
+                        type: string
+                  token:
+                    type: string
+        '401':
+          description: Unauthorized (invalid credentials)
+
+  /api/analyze-transactions:
+    post:
+      summary: Analyze a batch of transactions for muling patterns
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transactions
+              properties:
+                transactions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Transaction'
+      responses:
+        '200':
+          description: Transaction analysis successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+        '401':
+          description: Unauthorized (missing or invalid token)
+        '403':
+          description: Forbidden (invalid token)
+        '400':
+          description: Bad Request (e.g., no transactions provided)
+        '500':
+          description: Internal Server Error
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Transaction:
+      type: object
+      required:
+        - transaction_id
+        - sender_id
+        - receiver_id
+        - amount
+        - timestamp
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        sender_id:
+          type: string
+          example: ACC001
+        receiver_id:
+          type: string
+          example: ACC002
+        amount:
+          type: number
+          format: float
+          example: 100.50
+        timestamp:
+          type: string
+          format: date-time
+          example: '2023-10-26T10:00:00Z'
+    SuspiciousAccount:
+      type: object
+      required:
+        - account_id
+        - score
+        - reasons
+      properties:
+        account_id:
+          type: string
+          example: ACC005
+        score:
+          type: number
+          format: float
+          example: 75.2
+        reasons:
+          type: array
+          items:
+            type: string
+          example: ["Part of fraud ring: RING-1", "Involved in fan-in smurfing pattern (receiver)"]
+    FraudRing:
+      type: object
+      required:
+        - ring_id
+        - accounts
+        - cycle_length
+        - type
+      properties:
+        ring_id:
+          type: string
+          example: RING-1
+        accounts:
+          type: array
+          items:
+            type: string
+          example: ["ACC001", "ACC002", "ACC003"]
+        cycle_length:
+          type: integer
+          example: 3
+        type:
+          type: string
+          example: Cycle Detection
+    SmurfingResult:
+      type: object
+      properties:
+        fanIn:
+          type: array
+          items:
+            type: object
+            properties:
+              receiver:
+                type: string
+              senders:
+                type: array
+                items:
+                  type: string
+              count:
+                type: integer
+        fanOut:
+          type: array
+          items:
+            type: object
+            properties:
+              sender:
+                type: string
+              receivers:
+                type: array
+                items:
+                  type: string
+              count:
+                type: integer
+    AnalysisResult:
+      type: object
+      required:
+        - suspicious_accounts
+        - fraud_rings
+        - smurfing
+        - shell_chains
+        - graph
+        - summary
+      properties:
+        suspicious_accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SuspiciousAccount'
+        fraud_rings:
+          type: array
+          items:
+            $ref: '#/components/schemas/FraudRing'
+        smurfing:
+          $ref: '#/components/schemas/SmurfingResult'
+        shell_chains:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+          example: [["ACC004", "ACC005"], ["ACC010", "ACC011", "ACC012"]]
+        graph:
+          type: object
+          properties:
+            nodes:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  suspicious:
+                    type: boolean
+                  score:
+                    type: number
+            edges:
+              type: array
+              items:
+                type: object
+                properties:
+                  source:
+                    type: string
+                  target:
+                    type: string
+                  amount:
+                    type: number
+                  transaction_id:
+                    type: string
+        summary:
+          type: object
+          properties:
+            total_transactions:
+              type: integer
+            total_accounts:
+              type: integer
+            suspicious_accounts_count:
+              type: integer
+            fraud_rings_detected:
+              type: integer
+            smurfing_fan_in_detected:
+              type: integer
+            smurfing_fan_out_detected:
+              type: integer
+            shell_chains_detected:
+              type: integer
+            analysis_timestamp:
+              type: string
+              format: date-time
+

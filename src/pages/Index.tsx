@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+
 import MatrixRain from "@/components/MatrixRain";
 import { CsvUploader } from "@/components/fraud/CsvUploader";
 import { GraphVisualization } from "@/components/fraud/GraphVisualization";
@@ -25,12 +25,26 @@ const Index: React.FC = () => {
     setAnalysisResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("analyze-transactions", {
-        body: { transactions },
+      const token = localStorage.getItem("jwt_token"); // Retrieve token from localStorage or state
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in.");
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/analyze-transactions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ transactions }),
       });
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to analyze transactions");
+      }
+
+      const data: AnalysisResult = await response.json();
 
       setAnalysisResult(data as AnalysisResult);
       setActiveTab("graph");
